@@ -229,3 +229,138 @@ flag{6d1b604bb1b6da32b8bbca9e26d51589}
 This was an exciting CTF with a variety of challenging problems that tested our skills across multiple domains. We’re proud of our efforts and looking forward to the next challenge!
 
 
+## Plantopia CTF Writeup
+
+### Challenge Overview
+**Title**: Plantopia
+
+In this challenge, the Plantopia website provides information on various plants, including water levels and sunlight levels. Upon investigating the homepage, I discovered several API endpoints that interact with plant data and administrative functions. Here’s the breakdown of my approach to exploiting the API to retrieve sensitive information.
+
+---
+
+## Initial Exploration
+
+### Homepage
+On the homepage, I observed the following details:
+- A list of plants with specific attributes such as **water level** and **sunlight level**.
+- API endpoint locations were displayed at the top, which seemed to provide access to various plant operations.
+
+### Key Endpoints Discovered
+Clicking on the provided API Docs link revealed the following API endpoints:
+
+- **Plant Operations**:
+  - `/api/plants`
+  - `/api/plants/{plant_id}/water`
+  - `/api/plants/{plant_id}/edit`
+
+- **Administrative Operations**:
+  - `/api/admin/sendmail`
+  - `/api/admin/settings`
+  - `/api/admin/logs`
+
+
+---
+
+## Exploitation Steps
+
+### Step 1: Modifying Plant Details
+To test for command injection, I focused on editing the details of **Plant ID 1** by sending a modified payload to the `/api/plants/1/edit` endpoint.
+
+I changed the `alert_command` parameter from its default value:
+
+```json
+{
+  "description": "A beautiful sunflower.",
+  "sunlight_level": 80,
+  "watering_threshold": 50,
+  "alert_command": "/usr/sbin/sendmail -t"
+}
+```
+to
+```json
+{
+  "description": "A beautiful sunflower.",
+  "sunlight_level": 80,
+  "watering_threshold": 50,
+  "alert_command": "cat flag.txt"
+}
+```
+After making this change, I executed the `/api/admin/sendmail` endpoint for Plant ID 1.
+
+---
+
+## Viewing Execution Results
+
+Upon executing the modified command, I accessed the `/api/admin/logs` endpoint, which logged all executed commands. In the logs, I found the output of my command, which included the contents of `flag.txt`.
+
+
+## PillowFight CTF Writeup
+
+### Challenge Overview
+**Title**: PillowFight
+
+This challenge features an image upload service with an **advanced image combining API**. The site also provides API documentation, which led to the discovery of a command injection vulnerability in the `eval_command` parameter. By leveraging this vulnerability, I successfully retrieved the flag.
+
+---
+
+## Initial Exploration
+
+### Homepage Features
+On the homepage, I found:
+- An **image upload feature** allowing two image files to be uploaded.
+- A **Combine Image** button to merge the uploaded images.
+
+### API Documentation
+Additionally, there was a link to API documentation. However, the documentation page would continuously load without displaying any content.
+
+---
+
+## Investigating the API Documentation
+
+### Handling the Redirect
+After noticing the continuous loading issue, I suspected a redirect loop. I used the following `curl` command to handle redirects and access the API documentation:
+
+```bash
+curl -L http://challenge.ctf.games:31562/swagger
+```
+Step 2: Analyzing the Response
+
+The response contained HTML for the Swagger UI, which referenced resources such as /static/swagger.json. This JSON file likely contained details about the API endpoints.
+
+Step 3: Discovering the JSON Endpoint
+
+In the Swagger HTML, I found a JSON configuration file located at /static/swagger.json. Accessing this file revealed further details about the API, including a suspicious parameter named eval_command:
+```bash
+"default": "convert(img1 + img2, 'L')"
+```
+The presence of eval_command suggested that the application might be executing commands dynamically, hinting at a command injection vulnerability.
+
+
+---
+
+# Exploitation Steps
+
+## Step 1: Setting Up Burp Suite for Request Interception
+
+To test the command injection, I used **Burp Suite** to intercept and modify the requests sent by the homepage image upload feature. Here’s the approach I took:
+
+1. Uploaded two images through the homepage’s upload feature.
+2. Intercepted the HTTP request with Burp Suite.
+3. Added the request for the `eval_command` data
+
+---
+
+## Step 2: Testing Command Injection with `eval_command`
+
+I experimented by setting `eval_command` as `img1` in the intercepted request, which returned a image as a response. This confirmed that the server was indeed processing the `eval_command` dynamically.
+
+---
+
+## Step 3: Injecting the Payload
+
+With confirmation of command execution, I crafted a payload to read the contents of `flag.txt` by modifying `eval_command` as follows:
+
+```python
+img1 + open('flag.txt').read()
+```
+This payload was designed to concatenate the contents of flag.txt with img1. Upon sending the modified request, I received an error response containing the flag, confirming the success of the command injection attack.
